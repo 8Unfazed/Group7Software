@@ -254,6 +254,17 @@ button, input, textarea, select {
   margin-top: 0;
 }
 
+.auth-links {
+  margin: 0.5rem 0 1rem;
+}
+
+.inline-link {
+  display: inline-block;
+  margin-top: 0.9rem;
+  color: #2563eb;
+  font-weight: 600;
+}
+
 .auth-card label {
   display: flex;
   flex-direction: column;
@@ -262,7 +273,7 @@ button, input, textarea, select {
   font-weight: 600;
 }
 
-.auth-card input, .stack-form input, .stack-form textarea, .stack-form select, .panel-card select {
+.auth-card input, .stack-form input, .stack-form textarea, .stack-form select, .panel-card select, .filter-panel input, .filter-panel select {
   width: 100%;
   padding: 0.8rem 0.9rem;
   border: 1px solid #dbe2ea;
@@ -309,6 +320,14 @@ button, input, textarea, select {
 
 .panel-card {
   padding: 1.2rem;
+}
+
+.filter-panel {
+  margin-bottom: 1rem;
+}
+
+.filter-panel .inline-fields {
+  grid-template-columns: minmax(0, 2fr) minmax(180px, 1fr) minmax(160px, 1fr);
 }
 
 .stack-form {

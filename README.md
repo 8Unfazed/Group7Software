@@ -37,8 +37,10 @@ A MySQL-compatible schema is available in `database/campus_service_booking.sql`.
 ## Core features
 
 - Student registration and login
+- Password recovery flow with reset-token support
 - Role-based admin access
 - Service catalogue and slot browsing
+- Search, filtering and sorting of services
 - Booking creation with capacity checks
 - Booking cancellation and status tracking
 - Admin dashboard metrics and booking management

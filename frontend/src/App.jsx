@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BrowserRouter, NavLink, Route, Routes, useNavigate, useParams } from 'react-router-dom';
+import { BrowserRouter, Link, NavLink, Route, Routes, useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
 import './App.css';
 
@@ -55,6 +55,16 @@ function App() {
     return response.data;
   };
 
+  const requestPasswordReset = async ({ email }) => {
+    const response = await api.post('/auth/forgot-password', { email });
+    return response.data;
+  };
+
+  const resetPassword = async ({ token, password }) => {
+    const response = await api.post('/auth/reset-password', { token, password });
+    return response.data;
+  };
+
   const logout = async () => {
     try {
       if (token) {
@@ -74,6 +84,8 @@ function App() {
         <Route path="/" element={<LandingPage user={user} />} />
         <Route path="/register" element={<RegisterPage onRegister={register} user={user} />} />
         <Route path="/login" element={<LoginPage onLogin={login} user={user} />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage onRequestReset={requestPasswordReset} user={user} />} />
+        <Route path="/reset-password/:token" element={<ResetPasswordPage onResetPassword={resetPassword} user={user} />} />
         <Route path="/services" element={<BrowseServicesPage user={user} />} />
         <Route path="/services/:id" element={<ServiceDetailsPage user={user} />} />
         <Route path="/dashboard" element={<StudentDashboard user={user} />} />
@@ -285,7 +297,88 @@ function LoginPage({ onLogin, user }) {
           Password
           <input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
         </label>
+        <div className="auth-links">
+          <Link to="/forgot-password">Forgot password?</Link>
+        </div>
         <button type="submit" className="cta primary">Login</button>
+      </form>
+    </div>
+  );
+}
+
+function ForgotPasswordPage({ onRequestReset, user }) {
+  const navigate = useNavigate();
+  const [email, setEmail] = useState('');
+  const [status, setStatus] = useState('');
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (user) navigate(user.role === 'admin' ? '/admin' : '/dashboard');
+  }, [user, navigate]);
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    try {
+      setError('');
+      const response = await onRequestReset({ email });
+      setStatus(response.message || 'If an account exists, a reset email has been sent.');
+      setEmail('');
+    } catch (err) {
+      setError(err.response?.data?.message || 'We could not process your request.');
+    }
+  };
+
+  return (
+    <div className="auth-shell">
+      <form className="auth-card" onSubmit={handleSubmit}>
+        <h2>Reset your password</h2>
+        {error && <div className="alert alert-error">{error}</div>}
+        {status && <div className="alert alert-info">{status}</div>}
+        <label>
+          Email address
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+        </label>
+        <button type="submit" className="cta primary">Send reset link</button>
+        <Link to="/login" className="inline-link">Back to login</Link>
+      </form>
+    </div>
+  );
+}
+
+function ResetPasswordPage({ onResetPassword, user }) {
+  const navigate = useNavigate();
+  const { token } = useParams();
+  const [password, setPassword] = useState('');
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (user) navigate(user.role === 'admin' ? '/admin' : '/dashboard');
+  }, [user, navigate]);
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    try {
+      setError('');
+      const response = await onResetPassword({ token, password });
+      setMessage(response.message || 'Password updated.');
+      setTimeout(() => navigate('/login'), 1500);
+    } catch (err) {
+      setError(err.response?.data?.message || 'We could not reset your password.');
+    }
+  };
+
+  return (
+    <div className="auth-shell">
+      <form className="auth-card" onSubmit={handleSubmit}>
+        <h2>Create a new password</h2>
+        {error && <div className="alert alert-error">{error}</div>}
+        {message && <div className="alert alert-info">{message}</div>}
+        <label>
+          New password
+          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength="6" />
+        </label>
+        <button type="submit" className="cta primary">Update password</button>
       </form>
     </div>
   );
@@ -294,6 +387,9 @@ function LoginPage({ onLogin, user }) {
 function BrowseServicesPage({ user }) {
   const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [locationFilter, setLocationFilter] = useState('all');
+  const [sortBy, setSortBy] = useState('name');
 
   useEffect(() => {
     const fetchServices = async () => {
@@ -310,16 +406,62 @@ function BrowseServicesPage({ user }) {
     fetchServices();
   }, []);
 
+  const availableLocations = useMemo(
+    () => [...new Set(services.map((service) => service.location).filter(Boolean))],
+    [services]
+  );
+
+  const filteredServices = useMemo(() => {
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+    const nextServices = services.filter((service) => {
+      const matchesSearch = !normalizedSearch ||
+        service.service_name.toLowerCase().includes(normalizedSearch) ||
+        service.description.toLowerCase().includes(normalizedSearch) ||
+        service.location.toLowerCase().includes(normalizedSearch);
+      const matchesLocation = locationFilter === 'all' || service.location === locationFilter;
+      return matchesSearch && matchesLocation;
+    });
+
+    nextServices.sort((a, b) => {
+      if (sortBy === 'location') return a.location.localeCompare(b.location) || a.service_name.localeCompare(b.service_name);
+      if (sortBy === 'latest') return new Date(b.created_at) - new Date(a.created_at);
+      return a.service_name.localeCompare(b.service_name);
+    });
+
+    return nextServices;
+  }, [locationFilter, searchTerm, services, sortBy]);
+
   if (loading) return <div className="page-shell"><p>Loading services...</p></div>;
 
   return (
     <div className="page-shell">
       <h2>Campus services</h2>
+      <div className="panel-card filter-panel">
+        <div className="inline-fields">
+          <input
+            type="search"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search services or locations"
+          />
+          <select value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)}>
+            <option value="all">All locations</option>
+            {availableLocations.map((location) => (
+              <option key={location} value={location}>{location}</option>
+            ))}
+          </select>
+          <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+            <option value="name">Sort by name</option>
+            <option value="location">Sort by location</option>
+            <option value="latest">Newest first</option>
+          </select>
+        </div>
+      </div>
       <div className="service-grid">
-        {services.length === 0 ? (
-          <div className="empty-state">No services are currently available.</div>
+        {filteredServices.length === 0 ? (
+          <div className="empty-state">No services match your search or filters.</div>
         ) : (
-          services.map((service) => (
+          filteredServices.map((service) => (
             <div className="service-card" key={service.service_id}>
               <h3>{service.service_name}</h3>
               <p>{service.description}</p>
@@ -554,6 +696,7 @@ function AdminDashboard({ user }) {
   const [selectedService, setSelectedService] = useState(null);
   const [serviceForm, setServiceForm] = useState({ serviceName: '', description: '', location: '', openingTime: '09:00', closingTime: '17:00', bookingRules: '' });
   const [slotForm, setSlotForm] = useState({ slotDate: '', startTime: '09:00', endTime: '10:00', capacity: 4 });
+  const [slotError, setSlotError] = useState('');
 
   const loadAdminData = async () => {
     try {
@@ -591,11 +734,13 @@ function AdminDashboard({ user }) {
     event.preventDefault();
     if (!selectedService) return;
     try {
+      setSlotError('');
       await api.post(`/services/${selectedService.service_id}/slots`, slotForm);
       setSlotForm({ slotDate: '', startTime: '09:00', endTime: '10:00', capacity: 4 });
       loadAdminData();
     } catch (error) {
       console.error('Failed to create slot', error);
+      setSlotError(error.response?.data?.message || 'Failed to create availability slot.');
     }
   };
 
@@ -635,22 +780,23 @@ function AdminDashboard({ user }) {
 
         <div className="panel-card">
           <h3>Manage availability</h3>
-          <select value={selectedService ? selectedService.service_id : ''} onChange={(e) => {
-            const selected = services.find((service) => String(service.service_id) === e.target.value);
-            setSelectedService(selected || null);
-          }}>
-            <option value="">Choose service</option>
-            {services.map((service) => (
-              <option key={service.service_id} value={service.service_id}>{service.service_name}</option>
-            ))}
-          </select>
           <form className="stack-form" onSubmit={handleSlotSubmit}>
-            <input type="date" value={slotForm.slotDate} onChange={(e) => setSlotForm({ ...slotForm, slotDate: e.target.value })} />
+            <select value={selectedService ? selectedService.service_id : ''} onChange={(e) => {
+              const selected = services.find((service) => String(service.service_id) === e.target.value);
+              setSelectedService(selected || null);
+            }} required>
+              <option value="">Choose service</option>
+              {services.map((service) => (
+                <option key={service.service_id} value={service.service_id}>{service.service_name}</option>
+              ))}
+            </select>
+            {slotError && <div className="alert alert-error" role="alert">{slotError}</div>}
+            <input type="date" value={slotForm.slotDate} onChange={(e) => setSlotForm({ ...slotForm, slotDate: e.target.value })} required />
             <div className="inline-fields">
-              <input type="time" value={slotForm.startTime} onChange={(e) => setSlotForm({ ...slotForm, startTime: e.target.value })} />
-              <input type="time" value={slotForm.endTime} onChange={(e) => setSlotForm({ ...slotForm, endTime: e.target.value })} />
+              <input type="time" value={slotForm.startTime} onChange={(e) => setSlotForm({ ...slotForm, startTime: e.target.value })} required />
+              <input type="time" value={slotForm.endTime} onChange={(e) => setSlotForm({ ...slotForm, endTime: e.target.value })} required />
             </div>
-            <input type="number" min="1" value={slotForm.capacity} onChange={(e) => setSlotForm({ ...slotForm, capacity: e.target.value })} />
+            <input type="number" min="1" value={slotForm.capacity} onChange={(e) => setSlotForm({ ...slotForm, capacity: e.target.value })} required />
             <button type="submit" className="cta primary">Add slot</button>
           </form>
         </div>

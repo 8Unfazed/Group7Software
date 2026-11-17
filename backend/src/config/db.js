@@ -102,6 +102,14 @@ export const initializeDatabase = async () => {
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS password_reset_tokens (
+      token TEXT PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      expires_at TEXT NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE
+    );
+
     CREATE TABLE IF NOT EXISTS services (
       service_id INTEGER PRIMARY KEY AUTOINCREMENT,
       service_name TEXT NOT NULL,
